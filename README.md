@@ -66,7 +66,7 @@ pyproject.toml  — dependencies
 
 ## LLM SOC Oracle (this fork)
 
-This fork adapts autoresearch to fine-tune a small LLM as a **SOC analyst oracle** for [rlsecd](https://github.com/keithfrazerUofA/rlsecd), an RL-based security daemon. Instead of optimizing BPB on general text, it fine-tunes a model to evaluate security actions and provide structured feedback.
+This fork adapts autoresearch to fine-tune a small LLM as a **SOC analyst oracle** for rlsecd, an RL-based security daemon. Instead of optimizing BPB on general text, it fine-tunes a model to evaluate security actions and provide structured feedback.
 
 ### How it works
 
