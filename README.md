@@ -64,6 +64,53 @@ pyproject.toml  — dependencies
 - **Fixed time budget.** Training always runs for exactly 5 minutes, regardless of your specific platform. This means you can expect approx 12 experiments/hour and approx 100 experiments while you sleep. There are two upsides of this design decision. First, this makes experiments directly comparable regardless of what the agent changes (model size, batch size, architecture, etc). Second, this means that autoresearch will find the most optimal model for your platform in that time budget. The downside is that your runs (and results) become not comparable to other people running on other compute platforms.
 - **Self-contained.** No external dependencies beyond PyTorch and a few small packages. No distributed training, no complex configs. One GPU, one file, one metric.
 
+## LLM SOC Oracle (this fork)
+
+This fork adapts autoresearch to fine-tune a small LLM as a **SOC analyst oracle** for [rlsecd](https://github.com/keithfrazerUofA/rlsecd), an RL-based security daemon. Instead of optimizing BPB on general text, it fine-tunes a model to evaluate security actions and provide structured feedback.
+
+### How it works
+
+```mermaid
+graph LR
+    subgraph "Training Loop"
+        SG[security-gym] -->|streams events| R[rlsecd]
+        R -->|detects + acts| SR[SituationReporter]
+        SR -->|structured prompt| O[LLM Oracle]
+        O -->|JSON feedback| H5[Head 5: action_quality]
+        H5 -->|learns| R
+    end
+
+    subgraph "Fine-Tuning Loop"
+        SG -->|ground truth outcomes| DS[Training Dataset]
+        O -->|LLM judgments| DS
+        DS -->|JSONL| AR[autoresearch]
+        AR -->|LoRA fine-tune| FT[Fine-Tuned Model]
+        FT -->|replaces API| O
+    end
+```
+
+**The RL-LLM feedback loop:** rlsecd processes security events from security-gym, takes actions (block, throttle, alert), and composes situation reports describing what it did and why. The LLM oracle evaluates these actions and returns structured feedback (was the action appropriate? confidence? reward). This feedback trains Head 5 (action_quality) — a GVF that predicts the consequence of the agent's own actions.
+
+**The fine-tuning loop:** Ground truth outcomes from security-gym are paired with LLM judgments to build a training corpus. autoresearch fine-tunes a small model (LoRA/QLoRA) on this data, producing a local oracle that replaces API calls. The cycle repeats as rlsecd improves.
+
+### Differences from upstream
+
+| | Upstream autoresearch | This fork |
+|---|---|---|
+| **Task** | Pre-train GPT from scratch | LoRA fine-tune pre-trained model |
+| **Data** | FineWeb-Edu text | Security situation reports + feedback |
+| **Metric** | val_bpb (lower = better) | Classification accuracy on ground truth |
+| **Goal** | Best language model in 5 min | Best security action evaluator |
+
+### Relationship to the Alberta Plan
+
+This work implements Alberta Plan concepts:
+- **GVFs (General Value Functions):** Head 5 is a GVF — it predicts the value of the agent's own action, not an external reward signal
+- **Temporal uniformity:** rlsecd updates all heads (including Head 5) at every time step
+- **Continual learning:** The oracle improves over time as more data is collected and the model is re-fine-tuned
+
+See `ROADMAP.md` for the full phased plan and `TODO.md` for task tracking.
+
 ## Notable forks
 
 - [miolini/autoresearch-macos](https://github.com/miolini/autoresearch-macos)
